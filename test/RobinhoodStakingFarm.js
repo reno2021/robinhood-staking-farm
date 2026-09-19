@@ -306,6 +306,22 @@ describe("RobinhoodStakingFarm", function () {
     expect(updated.rewardToken).to.equal(await bonusToken.getAddress());
   });
 
+  it("keeps reward-token changes blocked while funded rewards remain even after all stake exits", async function () {
+    const { farm, rewardToken, bonusToken, owner, alice } = await loadFixture(deployFixture);
+    await farm.connect(owner).setPoolRewardPerSecond(0, 0);
+    await farm.connect(owner).fundRewards(0, ethers.parseEther("100"));
+    await farm.connect(alice).deposit(0, 0, ethers.parseEther("1"));
+    await farm.connect(alice).withdraw(0, 0, ethers.parseEther("1"));
+
+    const pool = await farm.getPool(0);
+    expect(pool.totalStaked).to.equal(0);
+    expect(pool.rewardBalance).to.equal(ethers.parseEther("100"));
+
+    await expect(farm.connect(owner).setPoolRewardToken(0, await bonusToken.getAddress())).to.be.revertedWith(
+      "reward balance exists"
+    );
+  });
+
   it("blocks reentrancy during LP withdrawals with a callback-capable token", async function () {
     const [owner, admin] = await ethers.getSigners();
     const CallbackERC20 = await ethers.getContractFactory("CallbackERC20");

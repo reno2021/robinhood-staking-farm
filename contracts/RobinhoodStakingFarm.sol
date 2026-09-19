@@ -327,7 +327,9 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
 
         PositionInfo[] storage userPositions = _positions[poolId][msg.sender];
         uint256 positionId = userPositions.length;
-        uint64 unlockAt = uint64(block.timestamp + tier.lockDuration);
+        uint256 unlockAtValue = block.timestamp + tier.lockDuration;
+        require(unlockAtValue <= type(uint64).max, "unlock overflow");
+        uint64 unlockAt = uint64(unlockAtValue);
         userPositions.push(
             PositionInfo({
                 amount: amount,
@@ -490,7 +492,11 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
                 continue;
             }
 
-            uint256 idealReward = Math.mulDiv(elapsed * pool.rewardPerSecond, tier.rewardMultiplierBps, BASIS_POINTS);
+            uint256 idealReward = Math.mulDiv(
+                Math.mulDiv(elapsed, pool.rewardPerSecond, 1),
+                tier.rewardMultiplierBps,
+                BASIS_POINTS
+            );
             if (idealReward == 0) {
                 continue;
             }
@@ -550,7 +556,11 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
                 continue;
             }
 
-            uint256 idealReward = Math.mulDiv(elapsed * pool.rewardPerSecond, tier.rewardMultiplierBps, BASIS_POINTS);
+            uint256 idealReward = Math.mulDiv(
+                Math.mulDiv(elapsed, pool.rewardPerSecond, 1),
+                tier.rewardMultiplierBps,
+                BASIS_POINTS
+            );
             if (idealReward == 0) {
                 continue;
             }
