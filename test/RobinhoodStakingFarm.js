@@ -299,7 +299,7 @@ describe("RobinhoodStakingFarm", function () {
 
     await farm.connect(alice).withdraw(0, 0, ethers.parseEther("1"));
     const balance = await farm.getPool(0);
-    expect(balance.rewardBalance).to.equal(0);
+    expect(balance.unaccruedRewardBalance).to.equal(0);
 
     await farm.connect(owner).setPoolRewardToken(0, await bonusToken.getAddress());
     const updated = await farm.getPool(0);
@@ -315,7 +315,7 @@ describe("RobinhoodStakingFarm", function () {
 
     const pool = await farm.getPool(0);
     expect(pool.totalStaked).to.equal(0);
-    expect(pool.rewardBalance).to.equal(ethers.parseEther("100"));
+    expect(pool.unaccruedRewardBalance).to.equal(ethers.parseEther("100"));
 
     await expect(farm.connect(owner).setPoolRewardToken(0, await bonusToken.getAddress())).to.be.revertedWith(
       "reward balance exists"

@@ -23,7 +23,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         address rewardToken;
         address bonusToken;
         uint256 rewardPerSecond;
-        uint256 rewardBalance;
+        uint256 unaccruedRewardBalance;
         uint256 bonusBalance;
         uint256 totalStaked;
         uint64 lastRewardTime;
@@ -85,7 +85,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         uint32 rewardMultiplierBps,
         bool enabled
     );
-    event RewardsFunded(uint256 indexed poolId, address indexed rewardToken, uint256 amount, uint256 newRewardBalance);
+    event RewardsFunded(uint256 indexed poolId, address indexed rewardToken, uint256 amount, uint256 newUnaccruedRewardBalance);
     event BonusDistributed(uint256 indexed poolId, address indexed bonusToken, uint256 amount);
     event Deposited(address indexed user, uint256 indexed poolId, uint256 indexed positionId, uint256 tierId, uint256 amount, uint64 unlockAt);
     event RewardsClaimed(address indexed user, uint256 indexed poolId, uint256 indexed positionId, uint256 rewardAmount, uint256 bonusAmount);
@@ -173,7 +173,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
                 rewardToken: rewardToken,
                 bonusToken: bonusToken,
                 rewardPerSecond: rewardPerSecond,
-                rewardBalance: 0,
+                unaccruedRewardBalance: 0,
                 bonusBalance: 0,
                 totalStaked: 0,
                 lastRewardTime: uint64(block.timestamp),
@@ -217,7 +217,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         _updatePool(poolId);
         PoolInfo storage pool = _pools[poolId];
         require(pool.totalStaked == 0, "active stake exists");
-        require(pool.rewardBalance == 0, "reward balance exists");
+        require(pool.unaccruedRewardBalance == 0, "reward balance exists");
         address previousRewardToken = pool.rewardToken;
         pool.rewardToken = newRewardToken;
         emit PoolRewardTokenUpdated(poolId, previousRewardToken, newRewardToken);
@@ -270,9 +270,9 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
 
         PoolInfo storage pool = _pools[poolId];
         IERC20(pool.rewardToken).safeTransferFrom(msg.sender, address(this), amount);
-        pool.rewardBalance += amount;
+        pool.unaccruedRewardBalance += amount;
 
-        emit RewardsFunded(poolId, pool.rewardToken, amount, pool.rewardBalance);
+        emit RewardsFunded(poolId, pool.rewardToken, amount, pool.unaccruedRewardBalance);
     }
 
     function distributeBonusRewards(uint256 poolId, uint256 amount) external onlyOwner validPool(poolId) whenNotPaused {
@@ -480,7 +480,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         TierInfo[] storage tiers = _poolTiers[poolId];
         TierInfo memory targetTier = tiers[tierId];
 
-        if (block.timestamp <= pool.lastRewardTime || pool.rewardBalance == 0 || pool.rewardPerSecond == 0) {
+        if (block.timestamp <= pool.lastRewardTime || pool.unaccruedRewardBalance == 0 || pool.rewardPerSecond == 0) {
             return targetTier.accRewardPerShare;
         }
 
@@ -513,7 +513,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
             return targetTier.accRewardPerShare;
         }
 
-        uint256 distributable = Math.min(totalIdeal, pool.rewardBalance);
+        uint256 distributable = Math.min(totalIdeal, pool.unaccruedRewardBalance);
         uint256 tierReward = tierId == lastActiveTier
             ? distributable - _distributedBeforeTier(tierId, idealRewards, distributable, totalIdeal)
             : Math.mulDiv(distributable, idealRewards[tierId], totalIdeal);
@@ -544,7 +544,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 elapsed = currentTime - pool.lastRewardTime;
         pool.lastRewardTime = uint64(currentTime);
 
-        if (pool.rewardBalance == 0 || pool.rewardPerSecond == 0) {
+        if (pool.unaccruedRewardBalance == 0 || pool.rewardPerSecond == 0) {
             return;
         }
 
@@ -577,8 +577,8 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
             return;
         }
 
-        uint256 distributable = Math.min(totalIdeal, pool.rewardBalance);
-        pool.rewardBalance -= distributable;
+        uint256 distributable = Math.min(totalIdeal, pool.unaccruedRewardBalance);
+        pool.unaccruedRewardBalance -= distributable;
         uint256 remaining = distributable;
 
         for (uint256 i = 0; i < tiers.length; i++) {
