@@ -73,6 +73,7 @@ This prevents silently changing the reward asset for existing accounting.
 - LP principal can be withdrawn at any time.
 - Non-flexible tiers charge a **9.7%** early withdrawal fee until maturity (`EARLY_WITHDRAWAL_FEE_BPS = 970`).
 - After `unlockAt`, withdrawals are fee-free.
+- A global pause blocks new deposits, reward funding, bonus distributions, and reward claims, but withdrawals remain available.
 
 ## DEX fee separation
 

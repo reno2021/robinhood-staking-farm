@@ -57,7 +57,9 @@ describe("RobinhoodStakingFarm", function () {
       expect(tier.rewardMultiplierBps).to.equal(TIER_MULTIPLIERS[tierId]);
 
       await farm.connect(alice).deposit(0, tierId, 1000n + BigInt(tierId));
-      const position = await farm.getPosition(0, alice.address, tierId);
+      const positionId = (await farm.positionsLength(0, alice.address)) - 1n;
+      const position = await farm.getPosition(0, alice.address, positionId);
+      expect(position.tierId).to.equal(tierId);
       expect(position.unlockAt).to.equal(position.depositedAt + BigInt(TIER_DURATIONS[tierId]));
     }
   });
@@ -183,6 +185,7 @@ describe("RobinhoodStakingFarm", function () {
 
     await farm.connect(owner).pause();
     await expect(farm.connect(owner).fundRewards(0, 1)).to.be.revertedWithCustomError(farm, "EnforcedPause");
+    await expect(farm.connect(alice).claim(0, 0)).to.be.revertedWithCustomError(farm, "EnforcedPause");
 
     await farm.connect(alice).withdraw(0, 0, 1000);
     await farm.connect(owner).unpause();

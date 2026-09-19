@@ -135,6 +135,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         validPool(poolId)
         returns (PositionInfo memory)
     {
+        // positionId is the append-order index within a user's positions for a pool, not the tier id.
         require(positionId < _positions[poolId][user].length, "position not found");
         return _positions[poolId][user][positionId];
     }
@@ -352,12 +353,12 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         emit Deposited(msg.sender, poolId, positionId, tierId, amount, unlockAt);
     }
 
-    function claim(uint256 poolId, uint256 positionId) external nonReentrant validPool(poolId) {
+    function claim(uint256 poolId, uint256 positionId) external nonReentrant validPool(poolId) whenNotPaused {
         _updatePool(poolId);
         _claimPosition(poolId, msg.sender, positionId);
     }
 
-    function claimMany(uint256 poolId, uint256[] calldata positionIds) external nonReentrant validPool(poolId) {
+    function claimMany(uint256 poolId, uint256[] calldata positionIds) external nonReentrant validPool(poolId) whenNotPaused {
         _updatePool(poolId);
         for (uint256 i = 0; i < positionIds.length; i++) {
             _claimPosition(poolId, msg.sender, positionIds[i]);

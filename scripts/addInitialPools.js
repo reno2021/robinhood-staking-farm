@@ -19,18 +19,6 @@ function parseRewardPerSecond(rawValue) {
   }
 }
 
-async function poolExistsForLp(farm, lpToken) {
-  const poolCount = Number(await farm.poolCount());
-  for (let i = 0; i < poolCount; i++) {
-    const pool = await farm.getPool(i);
-    if (pool.lpToken.toLowerCase() === lpToken.toLowerCase()) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 async function main() {
   const { ethers } = await network.create();
   const farmAddress = process.env.FARM_ADDRESS;
@@ -57,7 +45,7 @@ async function main() {
     if (!ethers.isAddress(lpToken)) {
       throw new Error(`${pool.pairEnv} is not a valid address`);
     }
-    if (await poolExistsForLp(farm, lpToken)) {
+    if ((await farm.lpPoolCount(lpToken)) > 0n) {
       console.log(`Skipping ${pool.name}: pool already exists for ${lpToken}`);
       continue;
     }
