@@ -53,7 +53,7 @@ For an active tier:
 - `tierRewards = elapsedSeconds * tierRate`
 - `accRewardPerShare += tierRewards / tierTotalStaked`
 
-Rewards are only accrued for tiers that have stake. If a pool has no stakers, time passes without consuming funded rewards. If the configured emission would exceed the pool's funded reward balance, accrual is capped to the funded balance.
+Rewards are only accrued for tiers that have stake. Each active tier mints against the pool's configured base rate using its multiplier, so total pool-wide emissions scale with the number of active tiers and their configured multipliers. If a pool has no stakers, time passes without consuming funded rewards. If the configured emission would exceed the pool's funded reward balance, accrual is capped to the funded balance.
 
 Bonus rewards are separate from emissions. The admin wallet must explicitly transfer bonus tokens into the farm through `distributeBonusRewards`. Bonus distributions are allocated pro rata by LP principal across currently staked positions in the selected pool.
 
@@ -63,6 +63,7 @@ Reward token changes are intentionally restricted:
 
 - reward tokens are configured **per pool**
 - `setPoolRewardToken` is only allowed when the pool has **no active stake** and **no remaining funded reward balance**
+- `setPoolBonusToken` is separate, and is only allowed when the pool has **no active stake**
 
 This prevents silently changing the reward asset for existing accounting.
 

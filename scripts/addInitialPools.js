@@ -7,6 +7,18 @@ import {
   INITIAL_POOL_PLACEHOLDERS
 } from "./config/defaultPools.js";
 
+function parseRewardPerSecond(rawValue) {
+  if (rawValue === undefined) {
+    return DEFAULT_POOL_REWARD_PER_SECOND;
+  }
+
+  try {
+    return BigInt(rawValue);
+  } catch {
+    throw new Error("REWARD_PER_SECOND must be an integer wei-per-second value");
+  }
+}
+
 async function main() {
   const { ethers } = await network.create();
   const farmAddress = process.env.FARM_ADDRESS;
@@ -16,9 +28,7 @@ async function main() {
 
   const rewardToken = process.env.REWARD_TOKEN || DEFAULT_REWARD_TOKEN;
   const bonusToken = process.env.BONUS_TOKEN || rewardToken;
-  const rewardPerSecond = process.env.REWARD_PER_SECOND
-    ? BigInt(process.env.REWARD_PER_SECOND)
-    : DEFAULT_POOL_REWARD_PER_SECOND;
+  const rewardPerSecond = parseRewardPerSecond(process.env.REWARD_PER_SECOND);
 
   if (!ethers.isAddress(rewardToken) || !ethers.isAddress(bonusToken)) {
     throw new Error("REWARD_TOKEN and BONUS_TOKEN must be valid addresses");

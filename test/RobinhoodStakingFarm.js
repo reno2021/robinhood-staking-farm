@@ -82,6 +82,7 @@ describe("RobinhoodStakingFarm", function () {
     expect(pendingThirtyDayAlice.rewardAmount).to.equal(ethers.parseEther("7.5"));
     expect(pendingThirtyDayBob.rewardAmount).to.equal(ethers.parseEther("7.5"));
 
+    await time.setNextBlockTimestamp((await time.latest()) + 1);
     const before = await rewardToken.balanceOf(alice.address);
     await farm.connect(alice).claimMany(0, [0, 1]);
     const after = await rewardToken.balanceOf(alice.address);
@@ -102,6 +103,7 @@ describe("RobinhoodStakingFarm", function () {
     pending = await farm.pendingRewards(0, alice.address, 0);
     expect(pending.rewardAmount).to.equal(ethers.parseEther("10"));
 
+    await time.setNextBlockTimestamp((await time.latest()) + 1);
     const before = await rewardToken.balanceOf(alice.address);
     await farm.connect(alice).claim(0, 0);
     const after = await rewardToken.balanceOf(alice.address);
@@ -162,7 +164,7 @@ describe("RobinhoodStakingFarm", function () {
   });
 
   it("supports pool admin controls and pause behavior without trapping withdrawals", async function () {
-    const { farm, lpToken, rewardToken, owner, alice } = await loadFixture(deployFixture);
+    const { farm, lpToken, rewardToken, bonusToken, owner, alice } = await loadFixture(deployFixture);
     await expect(
       farm.addPool(
         await lpToken.getAddress(),
@@ -186,6 +188,16 @@ describe("RobinhoodStakingFarm", function () {
     await farm.connect(owner).unpause();
     await farm.connect(owner).setPoolPaused(0, false);
     await farm.connect(owner).setPoolRewardToken(0, await rewardToken.getAddress());
+    await farm.connect(owner).setPoolBonusToken(0, await bonusToken.getAddress());
+  });
+
+  it("prevents changing lock duration after a tier has been used", async function () {
+    const { farm, owner, alice } = await loadFixture(deployFixture);
+    await farm.connect(alice).deposit(0, 2, 1000);
+
+    await expect(farm.connect(owner).setTierConfig(0, 2, 14 * DAY, TIER_MULTIPLIERS[2], true)).to.be.revertedWith(
+      "lock duration immutable"
+    );
   });
 
   it("caps rewards to funded balances and allows token changes only after positions are cleared", async function () {

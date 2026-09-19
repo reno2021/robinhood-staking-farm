@@ -34,6 +34,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         uint256 totalStaked;
         uint256 accRewardPerShare;
         uint256 accBonusPerShare;
+        bool hasDeposits;
         bool enabled;
     }
 
@@ -70,6 +71,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
     );
     event PoolRewardRateUpdated(uint256 indexed poolId, uint256 previousRewardPerSecond, uint256 newRewardPerSecond);
     event PoolRewardTokenUpdated(uint256 indexed poolId, address indexed previousRewardToken, address indexed newRewardToken);
+    event PoolBonusTokenUpdated(uint256 indexed poolId, address indexed previousBonusToken, address indexed newBonusToken);
     event PoolPaused(uint256 indexed poolId, bool isPaused);
     event TierConfigUpdated(
         uint256 indexed poolId,
@@ -178,6 +180,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
                     totalStaked: 0,
                     accRewardPerShare: 0,
                     accBonusPerShare: 0,
+                    hasDeposits: false,
                     enabled: true
                 })
             );
@@ -214,6 +217,16 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         emit PoolPaused(poolId, isPaused);
     }
 
+    function setPoolBonusToken(uint256 poolId, address newBonusToken) external onlyOwner validPool(poolId) {
+        require(newBonusToken != address(0), "bonus token is zero");
+        _updatePool(poolId);
+        PoolInfo storage pool = _pools[poolId];
+        require(pool.totalStaked == 0, "active stake exists");
+        address previousBonusToken = pool.bonusToken;
+        pool.bonusToken = newBonusToken;
+        emit PoolBonusTokenUpdated(poolId, previousBonusToken, newBonusToken);
+    }
+
     function setTierConfig(
         uint256 poolId,
         uint256 tierId,
@@ -224,6 +237,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         require(rewardMultiplierBps > 0, "multiplier is zero");
         _updatePool(poolId);
         TierInfo storage tier = _poolTiers[poolId][tierId];
+        require(!tier.hasDeposits || lockDuration == tier.lockDuration, "lock duration immutable");
         tier.lockDuration = lockDuration;
         tier.rewardMultiplierBps = rewardMultiplierBps;
         tier.enabled = enabled;
@@ -316,6 +330,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
             })
         );
 
+        tier.hasDeposits = true;
         tier.totalStaked += amount;
         pool.totalStaked += amount;
 
