@@ -191,12 +191,95 @@ describe("RobinhoodStakingFarm", function () {
     await farm.connect(owner).setPoolBonusToken(0, await bonusToken.getAddress());
   });
 
+  it("locks duplicate-LP policy per LP token once the first pool is created", async function () {
+    const { owner, lpToken, rewardToken, bonusToken } = await loadFixture(deployFixture);
+    const Farm = await ethers.getContractFactory("RobinhoodStakingFarm");
+    const duplicateFarm = await Farm.deploy(owner.address, owner.address);
+
+    await duplicateFarm.addPool(
+      await lpToken.getAddress(),
+      await rewardToken.getAddress(),
+      await bonusToken.getAddress(),
+      1,
+      TIER_DURATIONS,
+      TIER_MULTIPLIERS,
+      true
+    );
+
+    await expect(
+      duplicateFarm.addPool(
+        await lpToken.getAddress(),
+        await rewardToken.getAddress(),
+        await bonusToken.getAddress(),
+        1,
+        TIER_DURATIONS,
+        TIER_MULTIPLIERS,
+        false
+      )
+    ).to.be.revertedWith("duplicate lp requires opt-in");
+
+    await duplicateFarm.addPool(
+      await lpToken.getAddress(),
+      await rewardToken.getAddress(),
+      await bonusToken.getAddress(),
+      1,
+      TIER_DURATIONS,
+      TIER_MULTIPLIERS,
+      true
+    );
+  });
+
   it("prevents changing lock duration after a tier has been used", async function () {
     const { farm, owner, alice } = await loadFixture(deployFixture);
     await farm.connect(alice).deposit(0, 2, 1000);
 
     await expect(farm.connect(owner).setTierConfig(0, 2, 14 * DAY, TIER_MULTIPLIERS[2], true)).to.be.revertedWith(
       "lock duration immutable"
+    );
+  });
+
+  it("updates the bonus token only after stakers and distributed bonus balances are cleared", async function () {
+    const { farm, bonusToken, owner, alice } = await loadFixture(deployFixture);
+    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const nextBonusToken = await MockERC20.deploy("Next Bonus", "NBON", 18);
+
+    await farm.connect(alice).deposit(0, 0, ethers.parseEther("1"));
+    await farm.connect(owner).distributeBonusRewards(0, ethers.parseEther("5"));
+
+    await expect(farm.connect(owner).setPoolBonusToken(0, await nextBonusToken.getAddress())).to.be.revertedWith(
+      "active stake exists"
+    );
+
+    await farm.connect(alice).claim(0, 0);
+    await farm.connect(alice).withdraw(0, 0, ethers.parseEther("1"));
+
+    const poolAfterCleanup = await farm.getPool(0);
+    expect(poolAfterCleanup.bonusBalance).to.equal(0);
+
+    await farm.connect(owner).setPoolBonusToken(0, await nextBonusToken.getAddress());
+    const updatedPool = await farm.getPool(0);
+    expect(updatedPool.bonusToken).to.equal(await nextBonusToken.getAddress());
+    expect(updatedPool.bonusToken).to.not.equal(await bonusToken.getAddress());
+  });
+
+  it("prevents bonus token changes if unclaimable bonus dust remains", async function () {
+    const { farm, owner, alice, bob } = await loadFixture(deployFixture);
+    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const nextBonusToken = await MockERC20.deploy("Dust Bonus", "DBON", 18);
+
+    await farm.connect(alice).deposit(0, 0, ethers.parseEther("1"));
+    await farm.connect(bob).deposit(0, 0, ethers.parseEther("1"));
+    await farm.connect(owner).distributeBonusRewards(0, 1n);
+
+    await farm.connect(alice).withdraw(0, 0, ethers.parseEther("1"));
+    await farm.connect(bob).withdraw(0, 0, ethers.parseEther("1"));
+
+    const pool = await farm.getPool(0);
+    expect(pool.totalStaked).to.equal(0);
+    expect(pool.bonusBalance).to.equal(1n);
+
+    await expect(farm.connect(owner).setPoolBonusToken(0, await nextBonusToken.getAddress())).to.be.revertedWith(
+      "bonus balance exists"
     );
   });
 

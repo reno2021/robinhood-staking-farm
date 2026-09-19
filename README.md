@@ -63,7 +63,7 @@ Reward token changes are intentionally restricted:
 
 - reward tokens are configured **per pool**
 - `setPoolRewardToken` is only allowed when the pool has **no active stake** and **no remaining funded reward balance**
-- `setPoolBonusToken` is separate, and is only allowed when the pool has **no active stake**
+- `setPoolBonusToken` is separate, and is only allowed when the pool has **no active stake** and **no remaining distributed bonus balance**
 
 This prevents silently changing the reward asset for existing accounting.
 

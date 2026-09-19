@@ -22,6 +22,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         address bonusToken;
         uint256 rewardPerSecond;
         uint256 rewardBalance;
+        uint256 bonusBalance;
         uint256 totalStaked;
         uint64 lastRewardTime;
         bool paused;
@@ -57,6 +58,8 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
     mapping(uint256 => TierInfo[]) private _poolTiers;
     mapping(uint256 => mapping(address => PositionInfo[])) private _positions;
     mapping(address => uint256) public lpPoolCount;
+    mapping(address => bool) public lpDuplicatePolicyInitialized;
+    mapping(address => bool) public lpAllowsDuplicates;
 
     address public adminWallet;
 
@@ -152,8 +155,12 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         require(bonusToken != address(0), "bonus token is zero");
         require(lockDurations.length == rewardMultipliersBps.length, "tier length mismatch");
         require(lockDurations.length > 0, "no tiers");
-        if (!allowDuplicateLp) {
-            require(lpPoolCount[lpToken] == 0, "duplicate lp pool");
+        if (!lpDuplicatePolicyInitialized[lpToken]) {
+            lpDuplicatePolicyInitialized[lpToken] = true;
+            lpAllowsDuplicates[lpToken] = allowDuplicateLp;
+        } else {
+            require(lpAllowsDuplicates[lpToken], "duplicate lp pool");
+            require(allowDuplicateLp, "duplicate lp requires opt-in");
         }
 
         uint256 poolId = _pools.length;
@@ -164,6 +171,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
                 bonusToken: bonusToken,
                 rewardPerSecond: rewardPerSecond,
                 rewardBalance: 0,
+                bonusBalance: 0,
                 totalStaked: 0,
                 lastRewardTime: uint64(block.timestamp),
                 paused: false,
@@ -222,6 +230,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         _updatePool(poolId);
         PoolInfo storage pool = _pools[poolId];
         require(pool.totalStaked == 0, "active stake exists");
+        require(pool.bonusBalance == 0, "bonus balance exists");
         address previousBonusToken = pool.bonusToken;
         pool.bonusToken = newBonusToken;
         emit PoolBonusTokenUpdated(poolId, previousBonusToken, newBonusToken);
@@ -270,6 +279,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         PoolInfo storage pool = _pools[poolId];
         require(pool.totalStaked > 0, "no stakers");
         IERC20(pool.bonusToken).safeTransferFrom(msg.sender, address(this), amount);
+        pool.bonusBalance += amount;
 
         TierInfo[] storage tiers = _poolTiers[poolId];
         uint256 remaining = amount;
@@ -431,6 +441,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
             IERC20(pool.rewardToken).safeTransfer(user, pending.rewardAmount);
         }
         if (pending.bonusAmount > 0) {
+            pool.bonusBalance -= pending.bonusAmount;
             IERC20(pool.bonusToken).safeTransfer(user, pending.bonusAmount);
         }
         emit RewardsClaimed(user, poolId, positionId, pending.rewardAmount, pending.bonusAmount);
