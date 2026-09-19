@@ -13,6 +13,8 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant BASIS_POINTS = 10_000;
+    uint256 public constant MAX_TIERS = uint256(type(uint8).max) + 1;
+    /// @dev 970 basis points = 9.70%.
     uint256 public constant EARLY_WITHDRAWAL_FEE_BPS = 970;
     uint256 private constant ACC_PRECISION = 1e24;
 
@@ -155,6 +157,7 @@ contract RobinhoodStakingFarm is Ownable2Step, Pausable, ReentrancyGuard {
         require(bonusToken != address(0), "bonus token is zero");
         require(lockDurations.length == rewardMultipliersBps.length, "tier length mismatch");
         require(lockDurations.length > 0, "no tiers");
+        require(lockDurations.length <= MAX_TIERS, "too many tiers");
         if (!lpDuplicatePolicyInitialized[lpToken]) {
             lpDuplicatePolicyInitialized[lpToken] = true;
             lpAllowsDuplicates[lpToken] = allowDuplicateLp;
